@@ -56,6 +56,7 @@
   .big { font-size: 64px; text-align: center; margin: 10px 0; }
   .shake { animation: shake .35s; }
   @keyframes shake { 25% { transform: translateX(-8px); } 50% { transform: translateX(8px); } 75% { transform: translateX(-4px); } }
+  .top { display: flex; justify-content: flex-end; margin: -6px -6px 6px 0; }
   .footer { text-align: center; margin-top: 8px; }
   .footer a { color: var(--muted); font-size: 13px; }
   [hidden] { display: none !important; }
@@ -94,6 +95,7 @@
   <!-- ===== CHILD ===== -->
   <section id="child" hidden>
     <div class="card">
+      <div class="top"><button class="secondary small" id="stopBtn">Стоп ✋</button></div>
       <div class="progress" id="progress"></div>
 
       <div id="ask">
@@ -113,12 +115,12 @@
       </div>
 
       <div id="win" hidden>
-        <div class="big">🎉</div>
+        <div class="big" id="winEmoji">🎉</div>
         <div class="msg ok" id="winMsg"></div>
-        <div class="btns"><button id="again">Ещё раз</button></div>
+        <div class="btns"><button id="resume">Продолжить</button><button class="secondary" id="again">Ещё раз</button></div>
       </div>
     </div>
-    <div class="footer"><a href="#" id="toParent">для родителей</a></div>
+    <div class="footer" id="footer" hidden><a href="#" id="toParent">для родителей</a></div>
   </section>
 
   <!-- ===== BAD LINK ===== -->
@@ -219,6 +221,7 @@
   function ask() {
     renderProgress();
     $('ask').hidden = false; $('result').hidden = true; $('win').hidden = true;
+    $('stopBtn').hidden = false; $('footer').hidden = true;
     $('ru').textContent = cfg.w[order[idx]][0];
     $('answer').value = '';
     $('answer').focus();
@@ -235,7 +238,7 @@
     idx++;
     if (idx >= order.length) {
       renderProgress();
-      $('ask').hidden = true; $('win').hidden = false;
+      showEnd(false);
       $('winMsg').textContent = (cfg.n ? cfg.n + ', молодец!' : 'Молодец!') + ' Все слова правильно!';
       return;
     }
@@ -277,6 +280,18 @@
     $('nextBtn').onclick = cfg.r ? restart : ask;
     $('nextBtn').focus();
   }
+  function showEnd(stopped) {
+    $('ask').hidden = true; $('result').hidden = true; $('win').hidden = false;
+    $('stopBtn').hidden = true; $('footer').hidden = false;
+    $('resume').hidden = !stopped;
+    $('winEmoji').textContent = stopped ? '✋' : '🎉';
+    $('winMsg').className = stopped ? 'msg' : 'msg ok';
+  }
+  $('stopBtn').onclick = () => {
+    showEnd(true);
+    $('winMsg').textContent = `Пауза. Пройдено ${idx} из ${order.length}`;
+  };
+  $('resume').onclick = ask;
   $('again').onclick = restart;
   $('toParent').onclick = (e) => {
     e.preventDefault();
