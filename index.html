@@ -34,6 +34,9 @@
   .opts label { display: flex; gap: 10px; align-items: center; margin: 10px 0; font-size: 16px; }
   .opts input { width: 20px; height: 20px; }
   .btns { display: grid; gap: 10px; margin-top: 12px; }
+  .ai { background: #f5f3ff; border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; }
+  .ai summary { font-weight: 600; color: var(--accent); cursor: pointer; }
+  .ai textarea { font: inherit; font-size: 14px; width: 100%; padding: 10px; border: 2px solid var(--border); border-radius: 10px; margin: 8px 0; resize: vertical; }
   .link { word-break: break-all; font-size: 13px; background: #f3f4f6; padding: 10px; border-radius: 10px; margin-top: 10px; }
 
   /* child */
@@ -70,6 +73,15 @@
     <div class="card">
       <h1>Слова для ребёнка</h1>
       <p class="muted">Введите 5–10 слов: по-русски и по-английски. Потом отправьте ссылку ребёнку (или откройте на его телефоне и добавьте на главный экран).</p>
+      <details class="ai">
+        <summary>Вставить список (например, из AI-чата)</summary>
+        <p class="muted">1. Скопируйте шаблон, вставьте его в ChatGPT / Gemini / Claude и допишите в конце свои слова в любом виде (фото домашки, текст, тема).<br>2. Ответ чата вставьте в поле ниже.</p>
+        <textarea id="aiPrompt" readonly rows="7"></textarea>
+        <button class="secondary small" id="copyPrompt">Копировать шаблон</button>
+        <textarea id="pasteBox" rows="6" placeholder="кошка - cat&#10;собака - dog&#10;..."></textarea>
+        <button class="small" id="applyPaste">Заполнить слова</button>
+        <div class="muted" id="pasteMsg"></div>
+      </details>
       <div id="rows"></div>
       <button class="secondary small" id="addRow">+ слово</button>
       <div class="opts">
@@ -183,6 +195,50 @@
       .filter(([ru, en]) => ru && en);
     return { w, r: +$('optRestartAll').checked, s: +$('optShuffle').checked, c: +$('optShowCorrect').checked, n: $('kidName').value.trim() };
   }
+  // ---- AI template + paste parser ----
+  const AI_PROMPT = [
+    'Составь список слов для детского тренажёра английского (ребёнок видит русское слово и пишет его по-английски).',
+    'Формат ответа — строго так, каждая пара на новой строке, без нумерации, пояснений и лишнего текста:',
+    'русское слово - english word',
+    'Правила:',
+    '- 5–10 пар;',
+    '- английское слово в нижнем регистре, без артиклей (если в исходных данных не указано иначе);',
+    '- если дано только русское или только английское слово — добавь перевод;',
+    '- если дана тема — подбери простые слова по теме для ребёнка 7–10 лет.',
+    'Ответ дай одним блоком кода, чтобы его было удобно скопировать.',
+    'Исходные данные:',
+    ''
+  ].join('\n');
+  $('aiPrompt').value = AI_PROMPT;
+  $('copyPrompt').onclick = async () => {
+    try { await navigator.clipboard.writeText(AI_PROMPT); }
+    catch { $('aiPrompt').select(); document.execCommand('copy'); }
+    $('copyPrompt').textContent = 'Скопировано ✓';
+    setTimeout(() => $('copyPrompt').textContent = 'Копировать шаблон', 1500);
+  };
+  const CYR = /[а-яё]/i, LAT = /[a-z]/i;
+  function parsePairs(text) {
+    const out = [];
+    for (let line of text.split(/\r?\n/)) {
+      line = line.replace(/`/g, '').replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').trim();
+      if (!line) continue;
+      const m = line.split(/\s+[-–—]\s+|\s*[:=\t|]\s*|\s*[–—]\s*/);
+      if (m.length < 2) continue;
+      let [a, b] = [m[0].trim(), m.slice(1).join(' ').trim()];
+      if (LAT.test(a) && !CYR.test(a) && CYR.test(b)) [a, b] = [b, a]; // "en - ru" → swap
+      if (a && b && CYR.test(a) && LAT.test(b)) out.push([a, b]);
+    }
+    return out;
+  }
+  $('applyPaste').onclick = () => {
+    const pairs = parsePairs($('pasteBox').value);
+    if (!pairs.length) { $('pasteMsg').textContent = 'Не нашёл пар. Нужен формат «кошка - cat», по одной паре на строку.'; return; }
+    $('rows').innerHTML = '';
+    pairs.forEach(([ru, en]) => addRow(ru, en));
+    $('pasteMsg').textContent = `Добавлено слов: ${pairs.length}. Проверьте список ниже.`;
+    $('linkBox').hidden = true;
+  };
+
   let link = '';
   $('addRow').onclick = () => addRow();
   $('makeLink').onclick = () => {
