@@ -29,7 +29,9 @@
   input[type=text]:focus { outline: none; border-color: var(--accent); }
 
   /* parent */
-  .row { display: grid; grid-template-columns: 1fr 1fr 40px; gap: 8px; margin-bottom: 8px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr 40px; gap: 6px 8px; margin-bottom: 14px; }
+  .row input.tr { grid-column: 1 / 3; font-size: 14px; padding: 6px 12px; }
+  .trhint { text-align: center; font-size: 22px; color: var(--muted); margin: -14px 0 18px; }
   .row button { padding: 0; background: #fee2e2; color: var(--bad); font-size: 20px; }
   .opts label { display: flex; gap: 10px; align-items: center; margin: 10px 0; font-size: 16px; }
   .opts input { width: 20px; height: 20px; }
@@ -88,6 +90,7 @@
         <label><input type="checkbox" id="optRestartAll" checked> При ошибке — начинать весь список заново</label>
         <label><input type="checkbox" id="optShuffle" checked> Перемешивать слова</label>
         <label><input type="checkbox" id="optShowCorrect" checked> После ошибки показывать правильное слово</label>
+        <label><input type="checkbox" id="optHint"> Подсказка: показывать транскрипцию под русским словом</label>
       </div>
       <input type="text" id="kidName" placeholder="Имя ребёнка (необязательно)" maxlength="30">
       <div class="btns">
@@ -113,6 +116,7 @@
       <div id="ask">
         <div class="muted" style="text-align:center" id="hello">Напиши по-английски:</div>
         <div class="ru" id="ru"></div>
+        <div class="trhint" id="trHint" hidden></div>
         <form id="form" autocomplete="off">
           <input type="text" id="answer" lang="en" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" enterkeyhint="done">
           <div class="btns"><button type="submit">Проверить</button></div>
@@ -173,33 +177,36 @@
     $('parent').hidden = false; $('child').hidden = true; $('broken').hidden = true;
     const cfg = store.get('cfg') || DEFAULT;
     $('rows').innerHTML = '';
-    cfg.w.forEach(([ru, en]) => addRow(ru, en));
+    cfg.w.forEach(([ru, en, tr]) => addRow(ru, en, tr));
+    $('optHint').checked = !!cfg.t;
     $('optRestartAll').checked = !!cfg.r;
     $('optShuffle').checked = !!cfg.s;
     $('optShowCorrect').checked = !!cfg.c;
     $('kidName').value = cfg.n || '';
     $('linkBox').hidden = true;
   }
-  function addRow(ru = '', en = '') {
+  function addRow(ru = '', en = '', tr = '') {
     const row = document.createElement('div');
     row.className = 'row';
-    row.innerHTML = '<input type="text" placeholder="по-русски"><input type="text" placeholder="english" lang="en" autocapitalize="none" autocorrect="off" spellcheck="false"><button title="удалить">×</button>';
-    const [a, b] = row.querySelectorAll('input');
-    a.value = ru; b.value = en;
+    row.innerHTML = '<input type="text" placeholder="по-русски"><input type="text" placeholder="english" lang="en" autocapitalize="none" autocorrect="off" spellcheck="false"><button title="удалить">×</button><input type="text" class="tr" placeholder="[транскрипция] — необязательно" autocapitalize="none" autocorrect="off" spellcheck="false">';
+    const [a, b, c] = row.querySelectorAll('input');
+    a.value = ru; b.value = en; c.value = tr || '';
     row.querySelector('button').onclick = () => row.remove();
     $('rows').appendChild(row);
   }
   function readCfg() {
     const w = [...$('rows').querySelectorAll('.row')]
       .map(r => [...r.querySelectorAll('input')].map(i => i.value.trim()))
-      .filter(([ru, en]) => ru && en);
-    return { w, r: +$('optRestartAll').checked, s: +$('optShuffle').checked, c: +$('optShowCorrect').checked, n: $('kidName').value.trim() };
+      .filter(([ru, en]) => ru && en)
+      .map(([ru, en, tr]) => tr ? [ru, en, fmtTr(tr)] : [ru, en]);
+    return { w, r: +$('optRestartAll').checked, s: +$('optShuffle').checked, c: +$('optShowCorrect').checked, t: +$('optHint').checked, n: $('kidName').value.trim() };
   }
   // ---- AI template + paste parser ----
   const AI_PROMPT = [
     'Составь список слов для детского тренажёра английского (ребёнок видит русское слово и пишет его по-английски).',
     'Формат ответа — строго так, каждая пара на новой строке, без нумерации, пояснений и лишнего текста:',
     'русское слово - english word',
+    'Если в исходных данных есть транскрипция — сохрани её третьим столбцом в квадратных скобках: русское слово - english word - [транскрипция]. Если транскрипции нет — не добавляй её.',
     'Правила:',
     '- 5–10 пар;',
     '- английское слово в нижнем регистре, без артиклей (если в исходных данных не указано иначе);',
@@ -220,21 +227,25 @@
   function parsePairs(text) {
     const out = [];
     for (let line of text.split(/\r?\n/)) {
-      line = line.replace(/`/g, '').replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').trim();
+      line = line.replace(/[​-‏⁠﻿￼�`]/g, '')
+        .replace(/^\s*(?:[-*•]|\d+[.)])\s+/, '').trim();
       if (!line) continue;
-      const m = line.split(/\s+[-–—]\s+|\s*[:=\t|]\s*|\s*[–—]\s*/);
-      if (m.length < 2) continue;
-      let [a, b] = [m[0].trim(), m.slice(1).join(' ').trim()];
-      if (LAT.test(a) && !CYR.test(a) && CYR.test(b)) [a, b] = [b, a]; // "en - ru" → swap
-      if (a && b && CYR.test(a) && LAT.test(b)) out.push([a, b]);
+      let tr = '';
+      line = line.replace(/\[[^\]]*\]/, (t) => { tr = t; return ' '; });
+      const parts = line.split(/\s+[-–—]\s+|\s*[:=\t|]\s*|\s*[–—]\s*/).map(p => p.replace(/^[-–—\s]+|[-–—\s]+$/g, ''))
+        .filter(Boolean);
+      const ru = parts.find(p => CYR.test(p));
+      const en = parts.find(p => LAT.test(p) && !CYR.test(p));
+      if (ru && en) out.push(tr ? [ru, en, tr] : [ru, en]);
     }
     return out;
   }
+  const fmtTr = (t) => /^[\[\/]/.test(t) ? t : `[${t}]`;
   $('applyPaste').onclick = () => {
     const pairs = parsePairs($('pasteBox').value);
     if (!pairs.length) { $('pasteMsg').textContent = 'Не нашёл пар. Нужен формат «кошка - cat», по одной паре на строку.'; return; }
     $('rows').innerHTML = '';
-    pairs.forEach(([ru, en]) => addRow(ru, en));
+    pairs.forEach(([ru, en, tr]) => addRow(ru, en, tr));
     $('pasteMsg').textContent = `Добавлено слов: ${pairs.length}. Проверьте список ниже.`;
     $('linkBox').hidden = true;
   };
@@ -279,6 +290,9 @@
     $('ask').hidden = false; $('result').hidden = true; $('win').hidden = true;
     $('stopBtn').hidden = false; $('footer').hidden = true;
     $('ru').textContent = cfg.w[order[idx]][0];
+    const tr = cfg.w[order[idx]][2];
+    $('trHint').hidden = !(cfg.t && tr);
+    $('trHint').textContent = tr || '';
     $('answer').value = '';
     $('answer').focus();
   }
@@ -329,7 +343,11 @@
     $('ask').hidden = true; $('result').hidden = false;
     $('msg').className = 'msg bad'; $('msg').textContent = text;
     $('correct').innerHTML = cfg.c ? 'Правильно: <b></b>' : '';
-    if (cfg.c) $('correct').querySelector('b').textContent = cfg.w[order[idx]][1];
+    if (cfg.c) {
+      const [, en, tr] = cfg.w[order[idx]];
+      $('correct').querySelector('b').textContent = en;
+      if (tr) $('correct').append(' ' + tr);
+    }
     letters.classList.remove('shake'); void letters.offsetWidth; letters.classList.add('shake');
     if (navigator.vibrate) navigator.vibrate(200);
     $('nextBtn').textContent = cfg.r ? 'Начать всё заново' : 'Попробовать ещё раз';
