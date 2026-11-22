@@ -53,9 +53,16 @@
   .word { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 2px;
     font-size: clamp(28px, 9vw, 44px); font-weight: 800; margin: 22px 0 24px; letter-spacing: 1px; }
   .word .fix { white-space: pre; }
-  .gap { font: inherit; font-weight: 800; text-align: center; border: 0; border-bottom: 4px solid var(--accent);
-    background: var(--accent-soft); color: var(--text); border-radius: 8px 8px 0 0; padding: 0 2px; caret-color: var(--accent); }
-  .gap:focus { outline: 3px solid var(--accent); outline-offset: 1px; }
+  .gap { display: inline-flex; justify-content: center; align-items: flex-end; height: 1.25em; border-bottom: 4px solid var(--accent);
+    background: var(--accent-soft); color: var(--text); border-radius: 8px 8px 0 0; padding: 0 2px; cursor: pointer; }
+  .gap.active { outline: 3px solid var(--accent); outline-offset: 1px; animation: blink 1.2s infinite; }
+  @keyframes blink { 50% { outline-color: transparent; } }
+  .kbd { margin: 4px -12px 0; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+  .krow { display: flex; justify-content: center; gap: 4px; margin-bottom: 6px; }
+  .key { flex: 1 1 0; max-width: 44px; min-width: 0; height: 48px; padding: 0; border-radius: 8px; font-size: 21px; font-weight: 600;
+    background: #f3f4f6; color: var(--text); box-shadow: 0 2px 0 #d1d5db; }
+  .key:active { background: var(--accent-soft); transform: translateY(1px); }
+  .key.del { flex-grow: 1.5; max-width: 66px; background: var(--badbg); color: var(--bad); }
   .slot { display: inline-flex; flex-direction: column; align-items: center; border-radius: 8px; padding: 0 3px; }
   .slot.ok { background: var(--okbg); color: var(--ok); }
   .slot.bad { background: var(--badbg); color: var(--bad); }
@@ -125,6 +132,7 @@
         <div class="word" id="word"></div>
         <div class="hint" id="hint"></div>
         <div class="msg" id="msg" hidden></div>
+        <div class="kbd" id="kbd"></div>
         <div class="btns"><button type="submit" id="mainBtn">Проверить</button></div>
       </form>
 
@@ -292,40 +300,72 @@
     const box = $('word'); box.innerHTML = '';
     segs(w).forEach(s => {
       if (!s.gap) { const f = document.createElement('span'); f.className = 'fix'; f.textContent = s.t; box.appendChild(f); return; }
-      const inp = document.createElement('input');
-      inp.className = 'gap'; inp.dataset.ans = s.t;
-      inp.style.width = `calc(${s.t.length * 0.8 + 0.7}em)`;
-      Object.assign(inp, { type: 'text', lang: 'ru', autocomplete: 'off', spellcheck: false, inputMode: 'text' });
-      inp.setAttribute('autocorrect', 'off'); inp.setAttribute('autocapitalize', 'none'); inp.setAttribute('enterkeyhint', 'done');
-      inp.addEventListener('input', (e) => { if (!e.isComposing) onGapInput(inp); });
-      inp.addEventListener('compositionend', () => setTimeout(() => onGapInput(inp), 0));
-      inp.addEventListener('keydown', (e) => {
-        if (e.key === 'Backspace' && !inp.value) { const g = gaps(), i = g.indexOf(inp); if (i > 0) { e.preventDefault(); g[i - 1].focus(); } }
-      });
-      box.appendChild(inp);
+      const g = document.createElement('span');
+      g.className = 'gap'; g.dataset.ans = s.t; g.value = '';
+      g.style.minWidth = `${s.t.length * 0.8 + 0.5}em`;
+      g.onclick = () => setActive(g);
+      box.appendChild(g);
     });
-    gaps()[0].focus();
+    $('kbd').hidden = false;
+    setActive(gaps()[0]);
   }
   const gaps = () => [...$('word').querySelectorAll('.gap')];
-  function onGapInput(inp) {
-    const raw = inp.value;
-    const clean = raw.replace(/[^а-яёА-ЯЁ]/g, '');
-    $('hint').textContent = /[a-z]/i.test(raw) ? 'Переключи клавиатуру на русский язык 🇷🇺' : '';
-    const need = inp.dataset.ans.length;
-    const val = clean.length > need ? clean.slice(-need) : clean;   // extra letter replaces the old one
-    if (val !== raw) inp.value = val;
-    if (val.length >= need) {
-      const g = gaps(), next = g[g.indexOf(inp) + 1];
-      if (next) setTimeout(() => next.focus(), 0);
+  let active = null;
+  function setActive(g) {
+    active = g;
+    gaps().forEach(x => x.classList.toggle('active', x === g));
+  }
+  function typeLetter(ch) {
+    if (checked || !active) return;
+    $('hint').textContent = '';
+    const need = active.dataset.ans.length;
+    if (active.value.length >= need) active.value = need === 1 ? '' : active.value.slice(0, need - 1);
+    active.value += ch;
+    active.textContent = active.value;
+    if (active.value.length >= need) {
+      const g = gaps(), next = g[g.indexOf(active) + 1];
+      if (next) setActive(next);
     }
   }
+  function backspace() {
+    if (checked || !active) return;
+    if (!active.value) { const g = gaps(), i = g.indexOf(active); if (i > 0) setActive(g[i - 1]); }
+    active.value = active.value.slice(0, -1);
+    active.textContent = active.value;
+  }
+
+  // on-screen keyboard
+  const ROWS = ['йцукенгшщзхъ', 'фывапролджэ', 'ёячсмитьбю⌫'];
+  $('kbd').innerHTML = ROWS.map(r => `<div class="krow">${[...r].map(c =>
+    `<button type="button" class="key${c === '⌫' ? ' del' : ''}" data-k="${c}">${c}</button>`).join('')}</div>`).join('');
+  $('kbd').addEventListener('pointerdown', (e) => {
+    const b = e.target.closest('.key'); if (!b) return;
+    e.preventDefault();
+    b.dataset.k === '⌫' ? backspace() : typeLetter(b.dataset.k);
+  });
+
+  // physical keyboard (works even with English layout: keys mapped by position)
+  const QW = 'qwertyuiop[]asdfghjkl;\'`zxcvbnm,.', RU = 'йцукенгшщзхъфывапролджэёячсмитьбю';
+  const CODE = { BracketLeft: 'х', BracketRight: 'ъ', Semicolon: 'ж', Quote: 'э', Backquote: 'ё', Comma: 'б', Period: 'ю' };
+  document.addEventListener('keydown', (e) => {
+    if ($('child').hidden || $('form').hidden || e.ctrlKey || e.altKey || e.metaKey) return;
+    if (e.key === 'Enter') { if (document.activeElement.tagName !== 'BUTTON') { e.preventDefault(); $('mainBtn').click(); } return; }
+    if (checked) return;
+    if (e.key === 'Backspace') { e.preventDefault(); return backspace(); }
+    let ch = null;
+    if (/^[а-яё]$/i.test(e.key)) ch = e.key.toLowerCase();
+    else if (/^Key[A-Z]$/.test(e.code)) ch = RU[QW.indexOf(e.code[3].toLowerCase())];
+    else if (CODE[e.code]) ch = CODE[e.code];
+    if (ch) { e.preventDefault(); typeLetter(ch); }
+  });
 
   $('form').onsubmit = (e) => {
     e.preventDefault();
     if (checked) return next();
     const g = gaps();
-    const empty = g.find(i => !i.value);
-    if (empty) { $('hint').textContent = 'Заполни все пропуски'; empty.focus(); return; }
+    const empty = g.find(i => i.value.length < i.dataset.ans.length);
+    if (empty) { $('hint').textContent = 'Заполни все пропуски'; setActive(empty); return; }
+    $('kbd').hidden = true;
     checked = true;
     const lower = (s) => s.toLowerCase();
     let allOk = true;
