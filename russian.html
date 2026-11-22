@@ -146,7 +146,7 @@
         </div>
         <div class="btns">
           <button id="sumMain"></button>
-          <button class="secondary" id="sumAll">Пройти все слова заново</button>
+          <button class="secondary" id="sumAll">Начать заново</button>
         </div>
       </div>
     </div>
@@ -262,7 +262,7 @@
     catch { prompt('Скопируйте ссылку:', link); }
     setTimeout(() => $('copyLink').textContent = 'Копировать', 1500);
   };
-  $('openLink').onclick = () => { location.hash = link.split('#')[1]; };
+  $('openLink').onclick = () => { store.del('ru_state'); location.hash = link.split('#')[1]; };
 
   // ================= CHILD =================
   // st = { round, list: [wordIdx...], idx, res: [true/false per done item], errs: [wordIdx...], key }
@@ -275,7 +275,7 @@
     $('parent').hidden = true; $('child').hidden = false; $('broken').hidden = true;
     $('hello').textContent = cfg.n ? cfg.n + ', вставь пропущенные буквы:' : 'Вставь пропущенные буквы:';
     const saved = store.get('ru_state');
-    if (saved && saved.key === key && saved.idx < saved.list.length) { st = saved; ask(); }
+    if (saved && saved.key === key && (saved.idx > 0 || saved.round > 1)) { st = saved; showPause('С возвращением! Продолжим?'); }
     else newRound(1, cfg.w.map((_, i) => i), key);
   }
   function newRound(round, list, key = st.key) {
@@ -433,16 +433,19 @@
   }
   $('sumAll').onclick = () => newRound(1, cfg.w.map((_, i) => i));
 
-  $('stopBtn').onclick = () => {
+  $('stopBtn').onclick = () => showPause('Пауза');
+  function showPause(title) {
     $('form').hidden = true; $('summary').hidden = false;
     $('stopBtn').hidden = true; $('footer').hidden = false;
     $('sumEmoji').textContent = '✋';
-    $('sumMsg').className = 'msg'; $('sumMsg').textContent = 'Пауза';
-    $('sumScore').textContent = `Пройдено ${st.idx} из ${st.list.length}`;
+    $('sumMsg').className = 'msg'; $('sumMsg').textContent = title;
+    $('roundLbl').textContent = ''; $('progress').innerHTML = '';
+    $('sumScore').textContent = (st.round > 1 ? 'Работа над ошибками: ' : '') + `пройдено ${st.idx} из ${st.list.length}`;
     $('sumErrBox').hidden = true; $('sumAll').hidden = false;
     $('sumMain').textContent = 'Продолжить';
     $('sumMain').onclick = () => (st.idx < st.list.length ? ask() : showSummary());
-  };
+    $('sumMain').focus();
+  }
   $('toParent').onclick = (e) => {
     e.preventDefault();
     if (confirm('Открыть настройки родителя?')) { store.set('ru_cfg', cfg); history.pushState('', '', location.pathname); showParent(); }
