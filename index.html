@@ -43,6 +43,12 @@
   .progress { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; margin-bottom: 14px; }
   .dot { width: 14px; height: 14px; border-radius: 50%; background: #e0e7ff; }
   .dot.done { background: var(--ok); }
+  .dot.bad { background: var(--bad); }
+  .round { text-align: center; font-weight: 600; color: var(--accent); margin-bottom: 6px; }
+  .score { text-align: center; font-size: 18px; margin-bottom: 8px; }
+  .errlist { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 8px 0 4px; }
+  .chip { background: var(--badbg); border-radius: 8px; padding: 4px 10px; font-size: 16px; }
+  .chip b { color: var(--bad); }
   .dot.cur { background: var(--accent); transform: scale(1.25); }
   .ru { font-size: 40px; font-weight: 800; text-align: center; margin: 16px 0 22px; word-break: break-word; }
   #answer { font-size: 30px; text-align: center; padding: 14px; letter-spacing: 2px; }
@@ -85,7 +91,10 @@
       <div id="rows"></div>
       <button class="secondary small" id="addRow">+ слово</button>
       <div class="opts">
-        <label><input type="checkbox" id="optRestartAll" checked> При ошибке — начинать весь список заново</label>
+        <div class="muted">Что делать при ошибке:</div>
+        <label><input type="radio" name="mode" value="e" checked> Пройти все слова, потом повторить только ошибки</label>
+        <label><input type="radio" name="mode" value="r"> Начинать весь список заново</label>
+        <label><input type="radio" name="mode" value="t"> Сразу повторить это же слово</label>
         <label><input type="checkbox" id="optShuffle" checked> Перемешивать слова</label>
         <label><input type="checkbox" id="optShowCorrect" checked> После ошибки показывать правильное слово</label>
       </div>
@@ -109,6 +118,7 @@
   <section id="child" hidden>
     <div class="card">
       <div class="top"><button class="secondary small" id="stopBtn">Стоп ✋</button></div>
+      <div class="round" id="roundLbl"></div>
       <div class="progress" id="progress"></div>
 
       <div id="ask">
@@ -130,7 +140,12 @@
       <div id="win" hidden>
         <div class="big" id="winEmoji">🎉</div>
         <div class="msg ok" id="winMsg"></div>
-        <div class="btns"><button id="resume">Продолжить</button><button class="secondary" id="again">Ещё раз</button></div>
+        <div class="score" id="winScore"></div>
+        <div id="winErrBox" hidden>
+          <div class="muted" style="text-align:center">Слова с ошибками:</div>
+          <div class="errlist" id="winErr"></div>
+        </div>
+        <div class="btns"><button id="resume">Продолжить</button><button id="repeatErr"></button><button class="secondary" id="again">Ещё раз</button></div>
       </div>
     </div>
     <div class="footer" id="footer" hidden><a href="#" id="toParent">для родителей</a></div>
@@ -166,8 +181,12 @@
 
   const DEFAULT = {
     w: [['кошка','cat'],['собака','dog'],['яблоко','apple'],['дом','house'],['красный','red'],['школа','school'],['книга','book']],
-    r: 1, s: 1, c: 1, n: ''
+    m: 'e', r: 0, s: 1, c: 1, n: ''
   };
+  // m: 'e' = whole list then repeat only mistakes, 'r' = restart all on error, 't' = retry same word.
+  // Old links have only r (1 → restart, 0 → retry).
+  const modeOf = (c) => c.m || (c.r ? 'r' : 't');
+  const escHtml = (s) => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 
   // ================= PARENT =================
   function showParent() {
@@ -175,7 +194,8 @@
     const cfg = store.get('cfg') || DEFAULT;
     $('rows').innerHTML = '';
     cfg.w.forEach(([ru, en]) => addRow(ru, en));
-    $('optRestartAll').checked = !!cfg.r;
+    const m = modeOf(cfg);
+    document.querySelectorAll('input[name=mode]').forEach(i => i.checked = i.value === m);
     $('optShuffle').checked = !!cfg.s;
     $('optShowCorrect').checked = !!cfg.c;
     $('kidName').value = cfg.n || '';
@@ -194,7 +214,8 @@
     const w = [...$('rows').querySelectorAll('.row')]
       .map(r => [...r.querySelectorAll('input')].map(i => i.value.trim()))
       .filter(([ru, en]) => ru && en);
-    return { w, r: +$('optRestartAll').checked, s: +$('optShuffle').checked, c: +$('optShowCorrect').checked, n: $('kidName').value.trim() };
+    const m = document.querySelector('input[name=mode]:checked').value;
+    return { w, m, r: m === 'r' ? 1 : 0, s: +$('optShuffle').checked, c: +$('optShowCorrect').checked, n: $('kidName').value.trim() };
   }
   // ---- AI template + paste parser ----
   const AI_PROMPT = [
@@ -260,20 +281,24 @@
   $('openLink').onclick = () => { location.hash = link.split('#')[1]; };
 
   // ================= CHILD =================
-  let cfg, order, idx;
+  let cfg, mode, order, idx, round, res, errs;
   function startChild(c) {
-    cfg = c;
+    cfg = c; mode = modeOf(cfg);
     $('parent').hidden = true; $('child').hidden = false; $('broken').hidden = true;
     $('hello').textContent = cfg.n ? cfg.n + ', напиши по-английски:' : 'Напиши по-английски:';
     restart();
   }
-  function restart() {
-    order = cfg.w.map((_, i) => i);
+  function startRound(r, list) {
+    round = r; order = [...list]; res = []; errs = [];
     if (cfg.s) for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
     idx = 0; ask();
   }
+  function restart() { startRound(1, cfg.w.map((_, i) => i)); }
   function renderProgress() {
-    $('progress').innerHTML = order.map((_, i) => `<div class="dot ${i < idx ? 'done' : i === idx ? 'cur' : ''}"></div>`).join('');
+    const n = Math.min(idx + 1, order.length);
+    $('roundLbl').textContent = mode !== 'e' ? '' : round === 1 ? `Слово ${n} из ${order.length}` : `Работа над ошибками · ${n} из ${order.length}`;
+    $('progress').innerHTML = order.map((_, i) =>
+      `<div class="dot ${i < res.length ? (res[i] ? 'done' : 'bad') : i < idx ? 'done' : i === idx ? 'cur' : ''}"></div>`).join('');
   }
   function ask() {
     renderProgress();
@@ -292,20 +317,38 @@
     wrong(typed, target);
   };
   function correct() {
+    res.push(true);
     idx++;
-    if (idx >= order.length) {
-      renderProgress();
-      showEnd(false);
-      $('winMsg').textContent = (cfg.n ? cfg.n + ', молодец!' : 'Молодец!') + ' Все слова правильно!';
-      return;
-    }
+    if (idx >= order.length && !errs.length) { renderProgress(); return showSummary(); }
     $('ask').hidden = true; $('result').hidden = false;
     $('msg').className = 'msg ok'; $('msg').textContent = 'Правильно! 👍';
     $('letters').innerHTML = ''; $('correct').textContent = '';
-    $('nextBtn').textContent = 'Дальше';
-    $('nextBtn').onclick = ask;
+    $('nextBtn').textContent = idx >= order.length ? 'Итоги' : 'Дальше';
+    $('nextBtn').onclick = idx >= order.length ? showSummary : ask;
     renderProgress();
     $('nextBtn').focus();
+  }
+  function showSummary() {
+    showEnd(false);
+    const total = order.length, name = cfg.n ? cfg.n + ', ' : '';
+    $('winScore').textContent = mode !== 'e' ? '' : (round === 1 ? 'Верно: ' : 'Исправлено: ') + `${total - errs.length} из ${total}`;
+    $('winErrBox').hidden = !errs.length;
+    $('winErr').innerHTML = errs.map(i => `<span class="chip">${escHtml(cfg.w[i][0])} — <b>${escHtml(cfg.w[i][1])}</b></span>`).join('');
+    $('repeatErr').hidden = !errs.length;
+    $('again').textContent = errs.length ? 'Начать все слова заново' : 'Ещё раз';
+    if (!errs.length) {
+      $('winEmoji').textContent = '🎉'; $('winMsg').className = 'msg ok';
+      $('winMsg').textContent = name ? name + 'молодец! ' + (round === 1 ? 'Все слова правильно!' : 'Все ошибки исправлены!')
+        : 'Молодец! ' + (round === 1 ? 'Все слова правильно!' : 'Все ошибки исправлены!');
+      $('again').focus();
+    } else {
+      $('winEmoji').textContent = round === 1 ? '📝' : '💪'; $('winMsg').className = 'msg';
+      $('winMsg').textContent = name + 'теперь повторим слова, где были ошибки';
+      $('repeatErr').textContent = `Повторить ошибки (${errs.length})`;
+      const list = [...errs];
+      $('repeatErr').onclick = () => startRound(round + 1, list);
+      $('repeatErr').focus();
+    }
   }
   function wrong(typed, target) {
     let p = 0;
@@ -333,14 +376,24 @@
     if (cfg.c) $('correct').querySelector('b').textContent = cfg.w[order[idx]][1];
     letters.classList.remove('shake'); void letters.offsetWidth; letters.classList.add('shake');
     if (navigator.vibrate) navigator.vibrate(200);
-    $('nextBtn').textContent = cfg.r ? 'Начать всё заново' : 'Попробовать ещё раз';
-    $('nextBtn').onclick = cfg.r ? restart : ask;
+    if (mode === 'e') {
+      res.push(false); errs.push(order[idx]); idx++;
+      renderProgress();
+      $('nextBtn').textContent = idx >= order.length ? 'Итоги' : 'Дальше';
+      $('nextBtn').onclick = idx >= order.length ? showSummary : ask;
+    } else {
+      $('nextBtn').textContent = mode === 'r' ? 'Начать всё заново' : 'Попробовать ещё раз';
+      $('nextBtn').onclick = mode === 'r' ? restart : ask;
+    }
     $('nextBtn').focus();
   }
   function showEnd(stopped) {
     $('ask').hidden = true; $('result').hidden = true; $('win').hidden = false;
     $('stopBtn').hidden = true; $('footer').hidden = false;
     $('resume').hidden = !stopped;
+    $('winScore').textContent = ''; $('winErrBox').hidden = true; $('repeatErr').hidden = true;
+    $('again').textContent = 'Ещё раз';
+    $('roundLbl').textContent = '';
     $('winEmoji').textContent = stopped ? '✋' : '🎉';
     $('winMsg').className = stopped ? 'msg' : 'msg ok';
   }
@@ -348,7 +401,7 @@
     showEnd(true);
     $('winMsg').textContent = `Пауза. Пройдено ${idx} из ${order.length}`;
   };
-  $('resume').onclick = ask;
+  $('resume').onclick = () => (idx >= order.length ? showSummary() : ask());
   $('again').onclick = restart;
   $('toParent').onclick = (e) => {
     e.preventDefault();
