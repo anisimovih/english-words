@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0d9488">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Словарные слова</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230d9488'/%3E%3Ctext x='50' y='68' font-size='52' text-anchor='middle' fill='white' font-family='Arial' font-weight='bold'%3EАа%3C/text%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f0fdfa; --card: #ffffff; --text: #134e4a; --muted: #6b7280;
+    --accent: #0d9488; --accent-soft: #ccfbf1; --ok: #16a34a; --bad: #dc2626; --okbg: #dcfce7; --badbg: #fee2e2;
+    --border: #d1d5db;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh; }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 16px; }
+  .card { background: var(--card); border-radius: 20px; padding: 20px; box-shadow: 0 4px 20px rgba(13,148,136,.12); margin-bottom: 16px; }
+  h1 { font-size: 22px; margin: 4px 0 12px; }
+  .muted { color: var(--muted); font-size: 14px; }
+  button { font: inherit; border: 0; border-radius: 14px; padding: 14px 18px; font-size: 18px; font-weight: 600;
+    background: var(--accent); color: #fff; cursor: pointer; width: 100%; }
+  button.secondary { background: var(--accent-soft); color: var(--accent); }
+  button.small { width: auto; padding: 8px 12px; font-size: 15px; }
+  button:active { transform: scale(.98); }
+  input[type=text], textarea { font: inherit; width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 12px; font-size: 17px; }
+  input[type=text]:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  textarea { resize: vertical; }
+  code { background: #f3f4f6; padding: 1px 5px; border-radius: 6px; }
+
+  /* parent */
+  .opts label { display: flex; gap: 10px; align-items: center; margin: 10px 0; font-size: 16px; }
+  .opts input { width: 20px; height: 20px; }
+  .btns { display: grid; gap: 10px; margin-top: 12px; }
+  .ai { background: var(--bg); border-radius: 12px; padding: 10px 12px; margin-bottom: 14px; }
+  .ai summary { font-weight: 600; color: var(--accent); cursor: pointer; }
+  .ai textarea { font-size: 14px; padding: 10px; margin: 8px 0; }
+  .link { word-break: break-all; font-size: 13px; background: #f3f4f6; padding: 10px; border-radius: 10px; margin-top: 10px; }
+  .preview { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+  .chip { background: #f3f4f6; border-radius: 8px; padding: 3px 8px; font-size: 15px; }
+  .chip b { color: var(--accent); text-decoration: underline; }
+  .chip.err { background: var(--badbg); color: var(--bad); }
+
+  /* child */
+  .progress { display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: #e5e7eb; }
+  .dot.ok { background: var(--ok); }
+  .dot.bad { background: var(--bad); }
+  .dot.cur { background: var(--accent); transform: scale(1.3); }
+  .round { text-align: center; font-weight: 600; color: var(--accent); margin-bottom: 6px; }
+  .word { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-end; gap: 2px;
+    font-size: clamp(28px, 9vw, 44px); font-weight: 800; margin: 22px 0 24px; letter-spacing: 1px; }
+  .word .fix { white-space: pre; }
+  .gap { font: inherit; font-weight: 800; text-align: center; border: 0; border-bottom: 4px solid var(--accent);
+    background: var(--accent-soft); color: var(--text); border-radius: 8px 8px 0 0; padding: 0 2px; caret-color: var(--accent); }
+  .gap:focus { outline: 3px solid var(--accent); outline-offset: 1px; }
+  .slot { display: inline-flex; flex-direction: column; align-items: center; border-radius: 8px; padding: 0 3px; }
+  .slot.ok { background: var(--okbg); color: var(--ok); }
+  .slot.bad { background: var(--badbg); color: var(--bad); }
+  .slot .was { font-size: .45em; text-decoration: line-through; opacity: .85; line-height: 1; margin-bottom: 2px; }
+  .msg { text-align: center; font-size: 22px; font-weight: 700; margin: 6px 0 12px; }
+  .msg.ok { color: var(--ok); } .msg.bad { color: var(--bad); }
+  .hint { text-align: center; color: var(--bad); font-size: 15px; min-height: 20px; margin-bottom: 6px; }
+  .big { font-size: 64px; text-align: center; margin: 10px 0; }
+  .score { text-align: center; font-size: 18px; margin-bottom: 10px; }
+  .errlist { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 8px 0 4px; }
+  .errlist .chip { font-size: 18px; background: var(--badbg); }
+  .errlist .chip b { color: var(--bad); }
+  .shake { animation: shake .35s; }
+  @keyframes shake { 25% { transform: translateX(-8px); } 50% { transform: translateX(8px); } 75% { transform: translateX(-4px); } }
+  .top { display: flex; justify-content: flex-end; margin: -6px -6px 6px 0; }
+  .footer { text-align: center; margin-top: 8px; }
+  .footer a, .crosslink a { color: var(--muted); font-size: 13px; }
+  .crosslink { text-align: center; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ===== PARENT ===== -->
+  <section id="parent" hidden>
+    <div class="card">
+      <h1>Словарные слова: вставь букву</h1>
+      <p class="muted">Ребёнок видит слово с пропущенными буквами и вписывает их. После круга он повторяет <b>только те слова, где ошибся</b>, — пока все не будут верными.</p>
+      <p class="muted">По одному слову на строку. Пропущенные буквы — в квадратных скобках: <code>р[а]бота</code>, <code>кла[сс]</code>. Можно вставить список прямо из чата с <b>**жирными**</b> буквами и нумерацией — всё распознается.</p>
+      <details class="ai">
+        <summary>Шаблон для AI-чата</summary>
+        <p class="muted">Скопируйте, вставьте в ChatGPT / Gemini / Claude, допишите свои слова (или фото из тетради). Ответ вставьте в поле ниже.</p>
+        <textarea id="aiPrompt" readonly rows="7"></textarea>
+        <button class="secondary small" id="copyPrompt">Копировать шаблон</button>
+      </details>
+      <textarea id="words" rows="12" spellcheck="false"></textarea>
+      <div class="muted" id="parseInfo"></div>
+      <div class="preview" id="preview"></div>
+      <div class="opts">
+        <label><input type="checkbox" id="optShuffle" checked> Перемешивать слова</label>
+        <label><input type="checkbox" id="optShowCorrect" checked> После ошибки показывать правильную букву</label>
+      </div>
+      <input type="text" id="kidName" placeholder="Имя ребёнка (необязательно)" maxlength="30">
+      <div class="btns"><button id="makeLink">Создать ссылку</button></div>
+      <div id="linkBox" hidden>
+        <div class="link" id="linkText"></div>
+        <div class="btns">
+          <button id="shareLink">Отправить</button>
+          <button class="secondary" id="copyLink">Копировать</button>
+          <button class="secondary" id="openLink">Открыть тренажёр</button>
+        </div>
+      </div>
+    </div>
+    <div class="crosslink"><a href="./">Тренажёр английских слов →</a></div>
+  </section>
+
+  <!-- ===== CHILD ===== -->
+  <section id="child" hidden>
+    <div class="card">
+      <div class="top"><button class="secondary small" id="stopBtn">Стоп ✋</button></div>
+      <div class="round" id="roundLbl"></div>
+      <div class="progress" id="progress"></div>
+
+      <form id="form" autocomplete="off">
+        <div class="muted" style="text-align:center" id="hello">Вставь пропущенные буквы:</div>
+        <div class="word" id="word"></div>
+        <div class="hint" id="hint"></div>
+        <div class="msg" id="msg" hidden></div>
+        <div class="btns"><button type="submit" id="mainBtn">Проверить</button></div>
+      </form>
+
+      <div id="summary" hidden>
+        <div class="big" id="sumEmoji"></div>
+        <div class="msg" id="sumMsg"></div>
+        <div class="score" id="sumScore"></div>
+        <div id="sumErrBox">
+          <div class="muted" style="text-align:center">Слова с ошибками:</div>
+          <div class="errlist" id="sumErr"></div>
+        </div>
+        <div class="btns">
+          <button id="sumMain"></button>
+          <button class="secondary" id="sumAll">Пройти все слова заново</button>
+        </div>
+      </div>
+    </div>
+    <div class="footer" id="footer" hidden><a href="#" id="toParent">для родителей</a></div>
+  </section>
+
+  <section id="broken" hidden>
+    <div class="card"><h1>Ссылка повреждена</h1><p class="muted">Попросите родителя прислать ссылку заново.</p></div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+    del(k) { try { localStorage.removeItem(k); } catch {} },
+  };
+  function encode(obj) {
+    const bytes = new TextEncoder().encode(JSON.stringify(obj));
+    let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function decode(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(s), c => c.charCodeAt(0))));
+  }
+  const esc = (s) => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+  // Word format: "р[а]бота". Segments: [{t:'р'}, {t:'а', gap:true}, {t:'бота'}]
+  function segs(w) {
+    return w.split(/(\[[^\]]+\])/).filter(Boolean)
+      .map(p => p[0] === '[' ? { t: p.slice(1, -1), gap: true } : { t: p });
+  }
+  const plain = (w) => w.replace(/[\[\]]/g, '');
+  const marked = (w) => segs(w).map(s => s.gap ? `<b>${esc(s.t)}</b>` : esc(s.t)).join('');
+
+  // Parse a pasted list: numbering, bullets, **bold**, __x__, [x] all supported.
+  function parseList(text) {
+    const words = [], bad = [];
+    for (let line of text.split(/\r?\n/)) {
+      line = line.replace(/`/g, '').replace(/^\s*(?:[-*•]\s+|\d+\s*[.)]\s*)/, '').trim();
+      if (!line) continue;
+      const w = line.replace(/\*\*(.+?)\*\*/g, '[$1]').replace(/__(.+?)__/g, '[$1]')
+        .replace(/\s*[-–—:].*$/, '').trim();     // drop trailing comments like " — пояснение"
+      if (/\[[^\]]+\]/.test(w) && /^[а-яёА-ЯЁ\[\]\- ]+$/.test(w)) words.push(w);
+      else bad.push(line);
+    }
+    return { words: [...new Set(words)], bad };
+  }
+
+  const DEFAULT_WORDS = ['Р[а]бота','Р[е]бятки','Д[о]рога','[О]синка','Пету[х]','К[о]рова','С[о]рока','М[о]локо','С[а]харок',
+    'Яг[о]ды','Ябл[о]чки','Б[е]резка','Х[о]рошо','Ябл[о]нька','Р[о]дина','С[е]нтябрьский','Д[е]рево','К[а]пуста','Прощ[а]йтесь',
+    'Изв[и]нитесь','Р[и]сунок','Б[ы]стро','Т[е]тради','К[а]рандаши','С[о]бака','[О]ктябрь','С[е]нтябрь','Кла[сс]','Уч[и]тель',
+    'П[а]льто','Ск[о]ро','П[о]суда','С[а]харный','В[е]село','Ябл[о]ки','Н[о]ябрь','Изв[и]ните','В[е]тер','[О]сина'];
+  const DEFAULT = { w: DEFAULT_WORDS, s: 1, c: 1, n: '' };
+
+  // ================= PARENT =================
+  const AI_PROMPT = [
+    'Составь список словарных слов для детского тренажёра «вставь пропущенную букву».',
+    'Формат ответа — строго по одному слову на строку, без нумерации и пояснений.',
+    'Трудную букву (или несколько букв) возьми в квадратные скобки, например:',
+    'р[а]бота',
+    'кла[сс]',
+    'Если в слове несколько трудных мест — выдели каждое: к[а]р[а]ндаш.',
+    'Ответ дай одним блоком кода. Исходные слова:',
+    ''
+  ].join('\n');
+  $('aiPrompt').value = AI_PROMPT;
+  $('copyPrompt').onclick = async () => {
+    try { await navigator.clipboard.writeText(AI_PROMPT); }
+    catch { $('aiPrompt').select(); document.execCommand('copy'); }
+    $('copyPrompt').textContent = 'Скопировано ✓';
+    setTimeout(() => $('copyPrompt').textContent = 'Копировать шаблон', 1500);
+  };
+
+  function renderPreview() {
+    const { words, bad } = parseList($('words').value);
+    $('preview').innerHTML = words.map(w => `<span class="chip">${marked(w)}</span>`).join('') +
+      bad.map(b => `<span class="chip err" title="Нет буквы в [скобках]">${esc(b)}</span>`).join('');
+    $('parseInfo').textContent = `Слов: ${words.length}` + (bad.length ? ` · не распознано: ${bad.length} (красные — нужна буква в [скобках])` : '');
+    $('linkBox').hidden = true;
+    return words;
+  }
+  $('words').addEventListener('input', renderPreview);
+
+  function showParent() {
+    $('parent').hidden = false; $('child').hidden = true; $('broken').hidden = true;
+    const cfg = store.get('ru_cfg') || DEFAULT;
+    $('words').value = cfg.w.join('\n');
+    $('optShuffle').checked = !!cfg.s;
+    $('optShowCorrect').checked = !!cfg.c;
+    $('kidName').value = cfg.n || '';
+    renderPreview();
+  }
+  let link = '';
+  $('makeLink').onclick = () => {
+    const w = renderPreview();
+    if (!w.length) { alert('Добавьте хотя бы одно слово с буквой в [скобках]'); return; }
+    const cfg = { w, s: +$('optShuffle').checked, c: +$('optShowCorrect').checked, n: $('kidName').value.trim() };
+    store.set('ru_cfg', cfg);
+    $('words').value = w.join('\n');
+    link = location.origin + location.pathname + '#' + encode(cfg);
+    $('linkText').textContent = link;
+    $('linkBox').hidden = false;
+    $('shareLink').hidden = !navigator.share;
+  };
+  $('shareLink').onclick = () => navigator.share({ title: 'Словарные слова', url: link }).catch(() => {});
+  $('copyLink').onclick = async () => {
+    try { await navigator.clipboard.writeText(link); $('copyLink').textContent = 'Скопировано ✓'; }
+    catch { prompt('Скопируйте ссылку:', link); }
+    setTimeout(() => $('copyLink').textContent = 'Копировать', 1500);
+  };
+  $('openLink').onclick = () => { location.hash = link.split('#')[1]; };
+
+  // ================= CHILD =================
+  // st = { round, list: [wordIdx...], idx, res: [true/false per done item], errs: [wordIdx...], key }
+  let cfg, st, checked = false;
+  const save = () => store.set('ru_state', st);
+  const shuffle = (a) => { if (cfg.s) for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+  function startChild(c, key) {
+    cfg = c;
+    $('parent').hidden = true; $('child').hidden = false; $('broken').hidden = true;
+    $('hello').textContent = cfg.n ? cfg.n + ', вставь пропущенные буквы:' : 'Вставь пропущенные буквы:';
+    const saved = store.get('ru_state');
+    if (saved && saved.key === key && saved.idx < saved.list.length) { st = saved; ask(); }
+    else newRound(1, cfg.w.map((_, i) => i), key);
+  }
+  function newRound(round, list, key = st.key) {
+    st = { round, list: shuffle([...list]), idx: 0, res: [], errs: [], key };
+    save(); ask();
+  }
+  function renderProgress() {
+    $('roundLbl').textContent = st.round === 1 ? `Слово ${Math.min(st.idx + 1, st.list.length)} из ${st.list.length}`
+      : `Работа над ошибками · ${Math.min(st.idx + 1, st.list.length)} из ${st.list.length}`;
+    $('progress').innerHTML = st.list.map((_, i) =>
+      `<div class="dot ${i < st.res.length ? (st.res[i] ? 'ok' : 'bad') : i === st.idx ? 'cur' : ''}"></div>`).join('');
+  }
+
+  function ask() {
+    checked = false;
+    $('form').hidden = false; $('summary').hidden = true;
+    $('stopBtn').hidden = false; $('footer').hidden = true;
+    $('msg').hidden = true; $('hint').textContent = '';
+    $('mainBtn').textContent = 'Проверить';
+    renderProgress();
+    const w = cfg.w[st.list[st.idx]];
+    const box = $('word'); box.innerHTML = '';
+    segs(w).forEach(s => {
+      if (!s.gap) { const f = document.createElement('span'); f.className = 'fix'; f.textContent = s.t; box.appendChild(f); return; }
+      const inp = document.createElement('input');
+      inp.className = 'gap'; inp.maxLength = s.t.length; inp.dataset.ans = s.t;
+      inp.style.width = `calc(${s.t.length * 0.75 + 0.35}em)`;
+      Object.assign(inp, { type: 'text', lang: 'ru', autocomplete: 'off', spellcheck: false, inputMode: 'text' });
+      inp.setAttribute('autocorrect', 'off'); inp.setAttribute('autocapitalize', 'none'); inp.setAttribute('enterkeyhint', 'done');
+      inp.addEventListener('input', () => onGapInput(inp));
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && !inp.value) { const g = gaps(), i = g.indexOf(inp); if (i > 0) { e.preventDefault(); g[i - 1].focus(); } }
+      });
+      box.appendChild(inp);
+    });
+    gaps()[0].focus();
+  }
+  const gaps = () => [...$('word').querySelectorAll('.gap')];
+  function onGapInput(inp) {
+    const raw = inp.value;
+    const clean = raw.replace(/[^а-яёА-ЯЁ]/g, '');
+    $('hint').textContent = /[a-z]/i.test(raw) ? 'Переключи клавиатуру на русский язык 🇷🇺' : '';
+    if (clean !== raw) inp.value = clean;
+    if (inp.value.length >= inp.maxLength) {
+      const g = gaps(), next = g[g.indexOf(inp) + 1];
+      if (next) next.focus();
+    }
+  }
+
+  $('form').onsubmit = (e) => {
+    e.preventDefault();
+    if (checked) return next();
+    const g = gaps();
+    const empty = g.find(i => !i.value);
+    if (empty) { $('hint').textContent = 'Заполни все пропуски'; empty.focus(); return; }
+    checked = true;
+    const lower = (s) => s.toLowerCase();
+    let allOk = true;
+    g.forEach(inp => {
+      const ok = lower(inp.value) === lower(inp.dataset.ans);
+      if (!ok) allOk = false;
+      const slot = document.createElement('span');
+      slot.className = 'slot ' + (ok ? 'ok' : 'bad');
+      if (!ok) {
+        const was = document.createElement('span'); was.className = 'was'; was.textContent = inp.value; slot.appendChild(was);
+      }
+      const ans = document.createElement('span');
+      ans.textContent = ok || cfg.c ? inp.dataset.ans : '?';
+      slot.appendChild(ans);
+      inp.replaceWith(slot);
+    });
+    $('hint').textContent = '';
+    st.res.push(allOk);
+    if (!allOk) st.errs.push(st.list[st.idx]);
+    st.idx++; save();
+    $('msg').hidden = false;
+    $('msg').className = 'msg ' + (allOk ? 'ok' : 'bad');
+    $('msg').textContent = allOk ? 'Верно! 👍' : 'Неверно ✗';
+    if (!allOk) {
+      const w = $('word'); w.classList.remove('shake'); void w.offsetWidth; w.classList.add('shake');
+      if (navigator.vibrate) navigator.vibrate(200);
+    }
+    renderProgress();
+    $('mainBtn').textContent = st.idx >= st.list.length ? 'Итоги' : 'Дальше';
+    $('mainBtn').focus();
+  };
+
+  function next() {
+    if (st.idx < st.list.length) return ask();
+    showSummary();
+  }
+
+  function showSummary() {
+    $('form').hidden = true; $('summary').hidden = false;
+    $('stopBtn').hidden = true; $('footer').hidden = false;
+    $('progress').innerHTML = ''; $('roundLbl').textContent = '';
+    const total = st.list.length, ok = total - st.errs.length;
+    const name = cfg.n ? cfg.n + ', ' : '';
+    $('sumScore').textContent = (st.round === 1 ? 'Верно: ' : 'Исправлено: ') + `${ok} из ${total}`;
+    $('sumErrBox').hidden = !st.errs.length;
+    $('sumErr').innerHTML = st.errs.map(i => `<span class="chip">${marked(cfg.w[i])}</span>`).join('');
+    $('sumAll').hidden = false;
+    if (!st.errs.length) {
+      $('sumEmoji').textContent = '🎉';
+      $('sumMsg').className = 'msg ok';
+      $('sumMsg').textContent = name + (st.round === 1 ? 'молодец! Все слова верно!' : 'молодец! Все ошибки исправлены!');
+      $('sumMain').textContent = 'Пройти все слова заново';
+      $('sumMain').onclick = () => newRound(1, cfg.w.map((_, i) => i));
+      $('sumAll').hidden = true;
+      store.del('ru_state');
+    } else {
+      $('sumEmoji').textContent = st.round === 1 ? '📝' : '💪';
+      $('sumMsg').className = 'msg';
+      $('sumMsg').textContent = name + 'теперь повторим слова, где были ошибки';
+      $('sumMain').textContent = `Повторить ошибки (${st.errs.length})`;
+      const errs = [...st.errs];
+      $('sumMain').onclick = () => newRound(st.round + 1, errs);
+    }
+    $('sumMain').focus();
+  }
+  $('sumAll').onclick = () => newRound(1, cfg.w.map((_, i) => i));
+
+  $('stopBtn').onclick = () => {
+    $('form').hidden = true; $('summary').hidden = false;
+    $('stopBtn').hidden = true; $('footer').hidden = false;
+    $('sumEmoji').textContent = '✋';
+    $('sumMsg').className = 'msg'; $('sumMsg').textContent = 'Пауза';
+    $('sumScore').textContent = `Пройдено ${st.idx} из ${st.list.length}`;
+    $('sumErrBox').hidden = true; $('sumAll').hidden = false;
+    $('sumMain').textContent = 'Продолжить';
+    $('sumMain').onclick = () => (st.idx < st.list.length ? ask() : showSummary());
+  };
+  $('toParent').onclick = (e) => {
+    e.preventDefault();
+    if (confirm('Открыть настройки родителя?')) { store.set('ru_cfg', cfg); history.pushState('', '', location.pathname); showParent(); }
+  };
+
+  // ================= ROUTER =================
+  function route() {
+    const h = location.hash.slice(1);
+    if (!h) return showParent();
+    try {
+      const c = decode(h);
+      if (!Array.isArray(c.w) || !c.w.length || !c.w.every(w => /\[[^\]]+\]/.test(w))) throw 0;
+      startChild(c, h);
+    } catch {
+      $('parent').hidden = true; $('child').hidden = true; $('broken').hidden = false;
+    }
+  }
+  window.addEventListener('hashchange', route);
+  route();
+})();
+</script>
+</body>
+</html>
