@@ -293,11 +293,12 @@
     segs(w).forEach(s => {
       if (!s.gap) { const f = document.createElement('span'); f.className = 'fix'; f.textContent = s.t; box.appendChild(f); return; }
       const inp = document.createElement('input');
-      inp.className = 'gap'; inp.maxLength = s.t.length; inp.dataset.ans = s.t;
-      inp.style.width = `calc(${s.t.length * 0.75 + 0.35}em)`;
+      inp.className = 'gap'; inp.dataset.ans = s.t;
+      inp.style.width = `calc(${s.t.length * 0.8 + 0.7}em)`;
       Object.assign(inp, { type: 'text', lang: 'ru', autocomplete: 'off', spellcheck: false, inputMode: 'text' });
       inp.setAttribute('autocorrect', 'off'); inp.setAttribute('autocapitalize', 'none'); inp.setAttribute('enterkeyhint', 'done');
-      inp.addEventListener('input', () => onGapInput(inp));
+      inp.addEventListener('input', (e) => { if (!e.isComposing) onGapInput(inp); });
+      inp.addEventListener('compositionend', () => setTimeout(() => onGapInput(inp), 0));
       inp.addEventListener('keydown', (e) => {
         if (e.key === 'Backspace' && !inp.value) { const g = gaps(), i = g.indexOf(inp); if (i > 0) { e.preventDefault(); g[i - 1].focus(); } }
       });
@@ -310,10 +311,12 @@
     const raw = inp.value;
     const clean = raw.replace(/[^а-яёА-ЯЁ]/g, '');
     $('hint').textContent = /[a-z]/i.test(raw) ? 'Переключи клавиатуру на русский язык 🇷🇺' : '';
-    if (clean !== raw) inp.value = clean;
-    if (inp.value.length >= inp.maxLength) {
+    const need = inp.dataset.ans.length;
+    const val = clean.length > need ? clean.slice(-need) : clean;   // extra letter replaces the old one
+    if (val !== raw) inp.value = val;
+    if (val.length >= need) {
       const g = gaps(), next = g[g.indexOf(inp) + 1];
-      if (next) next.focus();
+      if (next) setTimeout(() => next.focus(), 0);
     }
   }
 
